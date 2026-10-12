@@ -50,15 +50,27 @@ Tips:
 - Holding the joystick left or right while you shoot aims for that side of the goal.
 - At kickoffs, throw-ins and corners, tap **PASS** to take it, or wait and it is taken for you.
 
+## Match history (Supabase)
+
+Every finished match is saved to the **Football Heroes 2026** Supabase project and listed on the **Match History** screen.
+
+- Each browser signs in anonymously the first time, so there is no account to create. The history belongs to that browser.
+- Row level security keeps every player's matches private (see `supabase/migrations/`).
+- If Supabase can't be reached, the game still plays; the match just isn't saved.
+- The project URL and publishable key are in `src/data/cloud.js`. The publishable key is designed to be public; access is controlled by the database policies.
+
+Database changes go in `supabase/migrations/` as timestamped `.sql` files. The Supabase GitHub integration applies them to the project when they're merged to `main`.
+
 ## Project structure
 
 ```
 index.html            App shell
 src/main.js           Screen router and shared state
-src/data/             Teams, ratings and fictional name pools
+src/data/             Teams, ratings, fictional name pools, Supabase client
 src/game/             Match engine, AI, physics, input and canvas renderer
 src/ui/               Screens and UI components
 design-system/        Brand guide, design tokens and logos
+supabase/             Supabase config and database migrations
 ```
 
 All UI is built from the tokens in `design-system/`. Read `design-system/BRAND.md` before adding screens or components.

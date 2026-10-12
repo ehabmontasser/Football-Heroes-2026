@@ -129,7 +129,7 @@ export function matchScreen({ go, state }) {
       if (bannerTimer > 0 && (bannerTimer -= dt) <= 0) banner.classList.remove('is-visible');
       if (toastTimer > 0 && (toastTimer -= dt) <= 0) toast.classList.remove('is-visible');
       if (pendingFulltime > 0 && (pendingFulltime -= dt) <= 0) {
-        go('fullTime', { summary: match.summary() });
+        go('fullTime', { summary: match.summary(), duration, difficulty: state.difficulty });
         return;
       }
     }

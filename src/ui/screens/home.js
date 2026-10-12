@@ -21,6 +21,9 @@ export function homeScreen({ go, state }) {
       h('button', { class: 'card tile', type: 'button', onClick: () => go('teamSelect', { mode: 'browse' }) },
         h('span', { class: 'title' }, 'TEAMS'),
         h('span', { class: 'body text-muted' }, 'Browse all 32 squads and ratings.')),
+      h('button', { class: 'card tile', type: 'button', onClick: () => go('history') },
+        h('span', { class: 'title' }, 'MATCH HISTORY'),
+        h('span', { class: 'body text-muted' }, 'Every match you have finished.')),
       h('button', { class: 'card tile', type: 'button', onClick: () => Dialog({ title: 'HOW TO PLAY', body: howToPlay() }) },
         h('span', { class: 'title' }, 'HOW TO PLAY'),
         h('span', { class: 'body text-muted' }, 'Controls for touch and keyboard.'))));

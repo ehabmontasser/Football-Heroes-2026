@@ -1,4 +1,5 @@
 import { h, Button, Card, KitSwatch } from '../components.js';
+import { saveMatch } from '../../data/cloud.js';
 
 export function statsTable(summary) {
   const { home, away } = summary;
@@ -30,6 +31,15 @@ export function fullTimeScreen({ go, state, args }) {
       ? `${away.team.name} took this one. Try again or drop the difficulty.`
       : 'Honours even after 90 minutes.';
 
+  // Save once per finished match (args are reused if the screen is revisited).
+  const saveStatus = h('p', { class: 'caption text-muted save-status', role: 'status' }, 'SAVING TO MATCH HISTORY...');
+  if (!args.saved) {
+    args.saved = saveMatch(s, { duration: args.duration, difficulty: args.difficulty });
+  }
+  args.saved.then(({ ok }) => {
+    saveStatus.textContent = ok ? 'SAVED TO MATCH HISTORY' : 'NOT SAVED: YOU ARE OFFLINE';
+  });
+
   const scorers = (side) => goals.filter((g) => g.side === side).map((g) => h('li', { class: 'body' }, `${g.scorer} ${g.minute}`));
 
   const el = h('main', { class: 'screen screen--fulltime' },
@@ -43,11 +53,13 @@ export function fullTimeScreen({ go, state, args }) {
         h('div', { class: 'result-team' }, KitSwatch(away.team, 'lg'), h('span', { class: 'title' }, away.team.code))),
       h('div', { class: 'scorers' },
         h('ul', { class: 'scorers__list' }, scorers('home')),
-        h('ul', { class: 'scorers__list scorers__list--away' }, scorers('away')))),
+        h('ul', { class: 'scorers__list scorers__list--away' }, scorers('away'))),
+      saveStatus),
     Card({ class: 'result-card' }, h('h2', { class: 'title' }, 'MATCH STATS'), statsTable(s)),
     h('div', { class: 'result-actions' },
       Button('REMATCH', { variant: 'primary', onClick: () => go('match') }),
       Button('NEW MATCH', { onClick: () => go('teamSelect', { mode: 'pick' }) }),
+      Button('HISTORY', { onClick: () => go('history') }),
       Button('MENU', { onClick: () => go('home') })));
   return { el };
 }

@@ -479,3 +479,16 @@ img { display: block; }
   .result-actions { flex-direction: row; justify-content: center; }
 }
 .glyph { display: grid; place-items: center; line-height: 0; }
+
+/* ---------- Match history ---------- */
+.save-status { margin-top: var(--space-1); }
+.history { display: flex; flex-direction: column; gap: var(--space-4); }
+.history__list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.history__meta { display: flex; justify-content: space-between; align-items: center; }
+.history__score { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.history__team { display: inline-flex; align-items: center; gap: var(--space-2); }
+.history__team:last-child { flex-direction: row-reverse; }
+.outcome { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); }
+.outcome--win { background: var(--badge-yellow); color: var(--navy-950); }
+.outcome--draw { background: var(--navy-700); color: var(--ink); }
+.outcome--loss { background: var(--navy-950); color: var(--ink-muted); border: var(--stroke-card) solid var(--navy-700); }
