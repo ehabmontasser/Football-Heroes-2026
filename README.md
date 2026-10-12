@@ -69,7 +69,7 @@ How it works: the room creator's browser runs the match and streams it to the ot
 
 Every finished match is saved to the **Football Heroes 2026** Supabase project and listed on the **Match History** screen.
 
-- On the first visit the game asks for a player name and runs an hCaptcha human check, then signs the browser in anonymously. There is no password; the history belongs to that browser. Tap your name on the home screen to change it.
+- On the first visit the game asks for a player name and runs an hCaptcha human check, then signs the browser in anonymously. There is no password; the history belongs to that browser. Tap your name on the home screen to change it, or tap **NEW PLAYER** there to start over with a new name (the old player's history can't be recovered on that device).
 - **Play without saving** skips the sign-in; the name is kept on the device only.
 - Row level security keeps every player's matches private (see `supabase/migrations/`).
 - If Supabase can't be reached, the game still plays; the match just isn't saved.

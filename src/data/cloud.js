@@ -70,6 +70,14 @@ export async function setName(name) {
 // Keep a name locally when Supabase is unavailable; matches are not saved.
 export const setOfflineName = (name) => store.set(name);
 
+// Forget this device's player so the next start creates a new one (name +
+// CAPTCHA). Anonymous players have no password, so the old one can't be
+// signed back into; its matches stay in the database but are unreachable.
+export async function newPlayer() {
+  try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* offline: local session is still cleared */ }
+  try { localStorage.removeItem(NAME_KEY); } catch { /* private mode */ }
+}
+
 function friendlyAuthError(error) {
   const code = error.code || '';
   if (code.includes('captcha')) return 'The human check failed. Please try it again.';

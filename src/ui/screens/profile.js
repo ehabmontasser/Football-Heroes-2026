@@ -1,5 +1,5 @@
-import { h, Button, Card, ScreenHeader } from '../components.js';
-import { HCAPTCHA_SITE_KEY, cleanName, getPlayer, signIn, setName, setOfflineName } from '../../data/cloud.js';
+import { h, Button, Card, ScreenHeader, Dialog } from '../components.js';
+import { HCAPTCHA_SITE_KEY, cleanName, getPlayer, signIn, setName, setOfflineName, newPlayer } from '../../data/cloud.js';
 
 const HCAPTCHA_SRC = 'https://js.hcaptcha.com/1/api.js?render=explicit&onload=fh26CaptchaReady';
 let captchaLoader = null;
@@ -41,12 +41,36 @@ export function profileScreen({ go, args }) {
     captchaBox,
     h('div', { class: 'dialog__actions' }, submit, first ? offline : null));
 
+  // Start over as a different player (only when renaming an existing one).
+  const confirmNewPlayer = () => Dialog({
+    title: 'NEW PLAYER?',
+    body: h('div', { class: 'howto' },
+      h('p', { class: 'body text-muted' }, 'You will pick a new name and pass the human check again.'),
+      h('p', { class: 'body form-error' }, 'Your current player and its match history can’t be brought back on this device. There is no password to sign back in.')),
+    actions: (close) => [
+      Button('START AS NEW PLAYER', {
+        variant: 'primary',
+        onClick: async (e) => {
+          e.currentTarget.disabled = true;
+          await newPlayer();
+          close();
+          go('profile', { mode: 'first' });
+        },
+      }),
+      Button('KEEP MY PLAYER', { onClick: close }),
+    ],
+  });
+
   const el = h('main', { class: 'screen screen--profile' },
     ScreenHeader(first ? 'ENTER YOUR NAME' : 'YOUR NAME', first ? null : () => go('home')),
     h('p', { class: 'body text-muted screen-intro' }, first
       ? 'Pick the name for your player. No password needed; your matches are saved to this device.'
       : 'Change the name shown on your matches.'),
-    Card({ class: 'profile-card' }, form));
+    Card({ class: 'profile-card' }, form),
+    first ? null : Card({ class: 'profile-card' },
+      h('h2', { class: 'title' }, 'NEW PLAYER'),
+      h('p', { class: 'body text-muted' }, 'Start fresh on this device with a new name and an empty match history.'),
+      Button('NEW PLAYER', { onClick: confirmNewPlayer })));
 
   let needsAccount = false;
   let widgetId = null;
