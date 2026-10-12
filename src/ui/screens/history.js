@@ -66,6 +66,8 @@ function row(m) {
         side(home, m.home_team),
         h('span', { class: 'numeric' }, `${m.home_score} - ${m.away_score}`),
         side(away, m.away_team)),
-      h('p', { class: 'caption text-muted' }, `${Number(m.duration_min)} MIN · ${m.difficulty.toUpperCase()}`),
+      h('p', { class: 'caption text-muted' }, m.difficulty === 'online'
+        ? `${Number(m.duration_min)} MIN · ONLINE VS ${(m.opponent_name || 'A FRIEND').toUpperCase()}`
+        : `${Number(m.duration_min)} MIN · ${m.difficulty.toUpperCase()}`),
       yours.length ? h('p', { class: 'body text-muted' }, `Your goals: ${yours.join(', ')}`) : null));
 }

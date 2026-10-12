@@ -13,9 +13,11 @@ import {
 
 const HALF = 45;
 
-function makeTeam(data, side, dir, params, isUser, kit) {
+function makeTeam(data, side, dir, params, human, kit) {
   const team = {
-    side, data, dir, params, isUser, kit,
+    side, data, dir, params, human, kit,
+    // Human control state (unused for computer teams).
+    controlled: null, lastSwitch: 0, shootHeld: 0,
     score: 0,
     stats: { possession: 0, shots: 0, onTarget: 0, passes: 0 },
     players: [],
@@ -32,12 +34,15 @@ function makeTeam(data, side, dir, params, isUser, kit) {
 }
 
 export class Match {
-  constructor({ home, away, kits, duration, difficulty, onEvent }) {
+  // `humans` says which sides people control: single player is { home: true },
+  // online play is { home: true, away: true }. Computer sides use `difficulty`.
+  constructor({ home, away, kits, duration, difficulty = 'normal', onEvent, humans = { home: true, away: false } }) {
     this.durationMin = duration;
     this.minutesPerSecond = 90 / (duration * 60);
     this.onEvent = onEvent || (() => {});
-    this.home = makeTeam(home, 'home', -1, DIFFICULTY.normal, true, kits.home);
-    this.away = makeTeam(away, 'away', 1, DIFFICULTY[difficulty], false, kits.away);
+    const params = (human) => (human ? DIFFICULTY.normal : DIFFICULTY[difficulty]);
+    this.home = makeTeam(home, 'home', -1, params(humans.home), !!humans.home, kits.home);
+    this.away = makeTeam(away, 'away', 1, params(humans.away), !!humans.away, kits.away);
     this.teams = [this.home, this.away];
     this.allPlayers = [...this.home.players, ...this.away.players];
     this.ball = { x: PITCH_W / 2, y: PITCH_L / 2, vx: 0, vy: 0, owner: null, lastTouch: null, lastKicker: null, kickId: 0, passTarget: null };
@@ -49,9 +54,6 @@ export class Match {
     this.phase = 'kickoff';
     this.phaseTimer = 0;
     this.restart = null;
-    this.controlled = null;
-    this.lastSwitch = 0;
-    this.shootHeld = 0;
     this.time = 0;
     this.setupKickoff(this.home, true);
   }
@@ -67,7 +69,14 @@ export class Match {
     }
     return best;
   }
-  get shotCharge() { return clamp(this.shootHeld / 0.8, 0, 1); }
+  shotChargeOf(team) { return clamp(team.shootHeld / 0.8, 0, 1); }
+  // Single-player shorthands (the person always plays the home side).
+  get controlled() { return this.home.controlled; }
+  get shotCharge() { return this.shotChargeOf(this.home); }
+  // Players people are steering right now; the AI leaves them alone.
+  humanControlled() {
+    return this.teams.filter((t) => t.human && t.controlled).map((t) => t.controlled);
+  }
 
   clockLabel() {
     const base = this.half === 1 ? HALF : 90;
@@ -115,7 +124,7 @@ export class Match {
     b.lastTouch = team;
     this.phase = kind === 'kickoff' ? 'kickoff' : 'restart';
     this.restart = { kind, team, taker, timer: 0 };
-    if (team.isUser) this.controlled = taker.role === 'GK' ? null : taker;
+    if (team.human) team.controlled = taker.role === 'GK' ? null : taker;
     const labels = { kickoff: 'KICK OFF', throwin: 'THROW-IN', corner: 'CORNER', goalkick: 'GOAL KICK' };
     this.onEvent('restart', { kind, label: labels[kind], team });
   }
@@ -221,34 +230,33 @@ export class Match {
     this.ball.isShot = false;
     p.hold = p.role === 'GK' ? 1.1 : 0;
     if (p.role === 'GK') { p.fx = 0; p.fy = p.team.dir; }
-    if (p.team.isUser) this.shootHeld = 0;
+    if (p.team.human) p.team.shootHeld = 0;
     p.decide = Math.max(p.decide, 0.15);
-    if (p.team.isUser && p.role !== 'GK') this.controlled = p;
+    if (p.team.human && p.role !== 'GK') p.team.controlled = p;
   }
 
-  // ---------- user input ----------
-  applyUser(input, dt) {
-    const team = this.home;
+  // ---------- human input ----------
+  applyHuman(team, input, dt) {
     const ball = this.ball;
     const userHasBall = ball.owner && ball.owner.team === team && ball.owner.role !== 'GK';
-    if (userHasBall) this.controlled = ball.owner;
+    if (userHasBall) team.controlled = ball.owner;
 
     // Auto-switch to the teammate nearest the ball when defending.
     const outfield = team.players.filter((p) => p.role !== 'GK');
     if (!userHasBall) {
       const target = ball.passTarget && ball.passTarget.team === team ? ball.passTarget : null;
       if (target && target.role !== 'GK') {
-        this.controlled = target;
+        team.controlled = target;
       } else {
         const nearest = this.closestTo(ball.x, ball.y, outfield);
-        const cur = this.controlled;
+        const cur = team.controlled;
         const curD = cur ? dist(cur.x, cur.y, ball.x, ball.y) : Infinity;
         const nd = dist(nearest.x, nearest.y, ball.x, ball.y);
-        if (!cur || (curD - nd > 7 && this.time - this.lastSwitch > 1.2)) this.controlled = nearest;
+        if (!cur || (curD - nd > 7 && this.time - team.lastSwitch > 1.2)) team.controlled = nearest;
       }
     }
 
-    const p = this.controlled;
+    const p = team.controlled;
     if (!p) return;
 
     if (input.passPressed) {
@@ -259,20 +267,20 @@ export class Match {
         this.passInDirection(p, dx, dy);
       } else if (!userHasBall) {
         const others = outfield.filter((o) => o !== p);
-        this.controlled = this.closestTo(ball.x, ball.y, others);
-        this.lastSwitch = this.time;
+        team.controlled = this.closestTo(ball.x, ball.y, others);
+        team.lastSwitch = this.time;
       }
     }
 
     if (ball.owner === p) {
-      if (input.shootDown) this.shootHeld += dt;
+      if (input.shootDown) team.shootHeld += dt;
       if (input.shootReleased) {
         const aim = Math.abs(input.move[0]) > 0.25 ? clamp(input.move[0], -1, 1) : null;
-        this.shoot(p, Math.max(0.25, this.shotCharge), aim);
-        this.shootHeld = 0;
+        this.shoot(p, Math.max(0.25, this.shotChargeOf(team)), aim);
+        team.shootHeld = 0;
       }
     } else {
-      this.shootHeld = 0;
+      team.shootHeld = 0;
       if (input.shootPressed && p.tackleCd <= 0 && ball.owner && ball.owner.team !== team && ball.owner.role !== 'GK' && !ball.owner.locked) {
         const o = ball.owner;
         p.tackleCd = 0.6;
@@ -299,7 +307,10 @@ export class Match {
   }
 
   // ---------- main update ----------
-  update(dt, input) {
+  // `inputs` is { home, away } input snapshots; a bare snapshot means the home side.
+  update(dt, inputs) {
+    if (inputs && inputs.move) inputs = { home: inputs };
+    inputs = inputs || {};
     if (this.phase === 'halftime' || this.phase === 'fulltime') return;
     this.time += dt;
     this.clock += dt * this.minutesPerSecond;
@@ -332,9 +343,11 @@ export class Match {
       return;
     }
 
-    this.applyUser(input, dt);
+    for (const team of this.teams) {
+      if (team.human && inputs[team.side]) this.applyHuman(team, inputs[team.side], dt);
+    }
     this.updateAI(dt);
-    this.updateRestart(dt, input);
+    this.updateRestart(dt);
     separate(this.allPlayers);
     for (const p of this.allPlayers) {
       p.x = clamp(p.x, -2, PITCH_W + 2);
@@ -351,11 +364,11 @@ export class Match {
 
   updateAI(dt) {
     const ball = this.ball;
-    const user = this.controlled;
-    const chasers = pickChasers(this, user);
+    const humans = this.humanControlled();
+    const chasers = pickChasers(this, humans);
     const inSetPiece = this.phase !== 'play';
     for (const p of this.allPlayers) {
-      if (p === user && p.role !== 'GK') continue;
+      if (humans.includes(p) && p.role !== 'GK') continue;
       if (p.locked) { steer(p, 0, 0, dt); continue; }
       if (p.stun > 0) { steer(p, p.vx * 0.3, p.vy * 0.3, dt); continue; }
 
@@ -387,12 +400,12 @@ export class Match {
     }
   }
 
-  updateRestart(dt, input) {
+  updateRestart(dt) {
     if (this.phase !== 'kickoff' && this.phase !== 'restart') return;
     const r = this.restart;
     r.timer += dt;
     const t = r.taker;
-    const userTaking = r.team.isUser && t === this.controlled;
+    const userTaking = r.team.human && t === r.team.controlled;
     // The user's pass button is handled in applyUser; auto-play after a pause.
     if (userTaking && r.timer < 5) return;
     if (!userTaking && r.timer < 1.1) return;
@@ -440,12 +453,12 @@ export class Match {
       // Keepers first: saves and catches.
       for (const team of this.teams) {
         const gk = team.players.find((p) => p.role === 'GK');
-        const reach = 1.4 + ((gk.data.overall + (team.isUser ? 0 : team.params.gk)) / 100) * 1.4;
+        const reach = 1.4 + ((gk.data.overall + (team.human ? 0 : team.params.gk)) / 100) * 1.4;
         if (gk.kickCd > 0 || gk.savedKick === b.kickId) continue;
         if (dist(gk.x, gk.y, b.x, b.y) > reach) continue;
         if (depthOf(team, b.y) > 0.25) continue; // only near their own goal
         gk.savedKick = b.kickId;
-        const rating = gk.data.overall + (team.isUser ? 0 : team.params.gk);
+        const rating = gk.data.overall + (team.human ? 0 : team.params.gk);
         const range = b.isShot ? b.shotDist || 15 : 15;
         const chance = b.lastTouch === team ? 1 : clamp(0.7 + (rating - 75) / 50 - (speed - 22) / 40 + (range - 12) / 35, 0.3, 0.94);
         if (Math.random() < chance) {
@@ -505,7 +518,7 @@ export class Match {
       if (p.stun > 0 || p.tackleCd > 0) continue;
       const d = dist(p.x, p.y, o.x, o.y);
       if (d > 2.3) continue;
-      const isUser = p === this.controlled;
+      const isUser = p.team.human && p === p.team.controlled;
       const base = isUser ? 0.35 : p.team.params.tackle;
       const rate = base * clamp(0.9 + (p.data.defending - skill) / 70, 0.4, 1.6);
       if (Math.random() < rate * dt) {
@@ -559,7 +572,7 @@ export class Match {
     this.phase = 'goal';
     this.phaseTimer = 0;
     this.concededBy = this.opponentsOf(team);
-    this.controlled = null;
+    for (const t of this.teams) t.controlled = null;
     this.onEvent('goal', goal);
   }
 

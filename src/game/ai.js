@@ -190,16 +190,16 @@ function keeperVelocity(match, p, max) {
 }
 
 // Who chases the ball: one presser per team, two when the ball is loose.
-export function pickChasers(match, userControlled) {
+export function pickChasers(match, humanControlled = []) {
   const set = new Set();
   const ball = match.ball;
   for (const team of match.teams) {
     const ranked = team.players
-      .filter((p) => p.role !== 'GK' && p !== userControlled)
+      .filter((p) => p.role !== 'GK' && !humanControlled.includes(p))
       .map((p) => ({ p, d: dist(p.x, p.y, ball.x, ball.y) }))
       .sort((a, b) => a.d - b.d);
     if (ball.owner && ball.owner.team === team) continue;
-    const userIsChasing = userControlled && userControlled.team === team;
+    const userIsChasing = humanControlled.some((p) => p.team === team);
     // A second defender closes down a carrier who gets within 30m of goal.
     const danger = ball.owner && depthOf(team, ball.y) < 0.3;
     const count = !ball.owner || danger ? 2 : 1;

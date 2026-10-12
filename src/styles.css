@@ -515,3 +515,13 @@ img { display: block; }
 .match-player { max-width: 40%; }
 .match-player[hidden] { display: none; }
 .match-player__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Online ---------- */
+.room-code-input { text-transform: uppercase; letter-spacing: var(--space-2); font-size: inherit; }
+.room-card { align-items: center; text-align: center; gap: var(--space-2); }
+.room-code { font-style: normal; letter-spacing: var(--space-2); color: var(--sun-gold); }
+.kit-swatch--empty { background: var(--navy-950); border-style: dashed; border-color: var(--ink-muted); }
+.lobby__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.lobby__status { color: var(--ink); }
+.screen--lobby { padding-bottom: calc(var(--size-touch) + var(--space-6) * 2); }
+.online-note { text-align: center; }

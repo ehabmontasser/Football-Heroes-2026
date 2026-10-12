@@ -74,6 +74,8 @@ Implemented in `src/styles.css` and `src/ui/components.js`. Build new screens fr
 - **Text input**: `navy-950` fill, `frame-blue` stroke, `radius-md`, min height `size-touch`, `body` type, placeholder `ink-muted`; label above in `label`, hint below in `caption` `ink-muted`.
 - **Form error**: `body` text in `badge-yellow` under the field (red text fails contrast on navy, so errors use yellow).
 - **Player pill**: HUD capsule at the right of the home HUD row with a `caption` PLAYER tag and the name in `label` weight, sentence case as typed; tap to rename.
+- **Room code**: `display-xl`, upright, `sun-gold`, wide letter spacing (`space-2`) on a centered card; shared via a small secondary button.
+- **Empty team slot** (online lobby): kit swatch shape in `navy-950` with a dashed `ink-muted` stroke while waiting for a player.
 - **Outcome tag** (match history): WIN `badge-yellow`/`navy-950`, DRAW `navy-700`/`ink`, LOSS `navy-950`/`ink-muted` with a `navy-700` stroke, `radius-sm`, `caption`.
 - **Match HUD**: scoreboard capsule (kit swatch, code, score), clock capsule (match minute in `cyan-energy`, real time left in `ink-muted`), pause icon button.
 - **Match banner**: slanted ribbon, `display-xl`. GOAL uses `sun-gold` with `navy-950` text; KICK OFF / FULL TIME use `navy-950` with `frame-blue` stroke.

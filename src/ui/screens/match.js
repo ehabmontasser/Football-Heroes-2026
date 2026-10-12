@@ -3,12 +3,19 @@ import { getTeam } from '../../data/teams.js';
 import { Match } from '../../game/engine.js';
 import { Renderer } from '../../game/render.js';
 import { Input } from '../../game/input.js';
+import { clamp } from '../../game/physics.js';
 import { resolveKits } from '../../theme.js';
 import { getPlayer } from '../../data/cloud.js';
+import { currentRoom } from '../../net/room.js';
+import {
+  SEND_INTERVAL_MS, encodeState, RemoteInput, InputSender, StateMirror, encodeSummary, decodeSummary, flipSummary,
+} from '../../net/netplay.js';
 import { howToPlay } from './howToPlay.js';
 import { statsTable } from './fullTime.js';
 
 const STEP = 1 / 60;
+const HOST_SILENCE_MS = 3000; // guest shows "waiting for host" after this
+const LOST_MS = 15000; // either side gives up after this
 
 // Solid white glyphs, one weight, 24px (no icon set yet).
 const GLYPHS = {
@@ -21,14 +28,22 @@ const GLYPHS = {
 };
 const glyph = (name) => Glyph(GLYPHS[name]);
 
-export function matchScreen({ go, state }) {
-  const homeTeam = getTeam(state.homeId);
-  const awayTeam = getTeam(state.awayId);
-  if (!homeTeam || !awayTeam) { queueMicrotask(() => go('home')); return { el: h('main') }; }
+// Modes: 'solo' (you vs computer), 'host' (runs the online match), 'guest'
+// (mirrors the host's match and sends controls).
+export function matchScreen({ go, state, args }) {
+  const online = args.online || null;
+  const mode = online ? online.role : 'solo';
+  const room = online ? currentRoom() : null;
+  const homeTeam = getTeam(online ? online.homeId : state.homeId);
+  const awayTeam = getTeam(online ? online.awayId : state.awayId);
+  if (!homeTeam || !awayTeam || (online && !room)) { queueMicrotask(() => go(online ? 'online' : 'home')); return { el: h('main') }; }
 
-  const duration = state.debugDuration || state.duration;
+  const duration = online ? online.duration : state.debugDuration || state.duration;
+  const localSide = mode === 'guest' ? 'away' : 'home';
+  const oppName = online ? (mode === 'host' ? online.guestName : online.hostName) : '';
   const kits = resolveKits(homeTeam, awayTeam);
   const swatch = (team, kit) => KitSwatch({ kit: { primary: kit, secondary: team.kit.secondary } }, 'sm');
+  const localTeamData = localSide === 'home' ? homeTeam : awayTeam;
 
   // ---------- DOM ----------
   const canvas = h('canvas', { class: 'match-canvas', 'aria-label': `${homeTeam.name} against ${awayTeam.name}`, role: 'img' });
@@ -36,7 +51,7 @@ export function matchScreen({ go, state }) {
   const awayScore = h('span', { class: 'numeric scoreboard__score' }, '0');
   const clock = h('span', { class: 'numeric scoreboard__clock' }, "1'");
   const timeLeft = h('span', { class: 'caption text-muted' }, '');
-  const pauseBtn = h('button', { class: 'icon-btn icon-btn--hud', type: 'button', 'aria-label': 'Pause' }, glyph('pause'));
+  const pauseBtn = h('button', { class: 'icon-btn icon-btn--hud', type: 'button', 'aria-label': online ? 'Menu' : 'Pause' }, glyph('pause'));
 
   const hud = h('div', { class: 'match-hud' },
     h('div', { class: 'capsule scoreboard', role: 'status', 'aria-live': 'off' },
@@ -48,7 +63,7 @@ export function matchScreen({ go, state }) {
 
   // Your name: in the HUD next to the clock, and above your player on the pitch.
   const nameCapsule = h('div', { class: 'capsule match-player', hidden: true },
-    swatch(homeTeam, kits.home), h('span', { class: 'label match-player__name' }, ''));
+    swatch(localTeamData, kits[localSide]), h('span', { class: 'label match-player__name' }, ''));
   hud.insertBefore(nameCapsule, hud.children[1]);
   let playerName = '';
   getPlayer().then(({ name }) => {
@@ -67,9 +82,9 @@ export function matchScreen({ go, state }) {
   const actionBtn = (cls, name, label) => {
     const lab = h('span', { class: 'caption' }, label);
     const ic = h('span', { class: 'action-btn__icon' }, glyph(name));
-    const el = h('button', { class: `action-btn ${cls}`, type: 'button', 'aria-label': label }, ic, lab);
-    el.setGlyph = (n, l) => { ic.replaceChildren(glyph(n)); lab.textContent = l; el.setAttribute('aria-label', l); };
-    return el;
+    const btn = h('button', { class: `action-btn ${cls}`, type: 'button', 'aria-label': label }, ic, lab);
+    btn.setGlyph = (n, l) => { ic.replaceChildren(glyph(n)); lab.textContent = l; btn.setAttribute('aria-label', l); };
+    return btn;
   };
   const passBtn = actionBtn('action-btn--pass', 'pass', 'PASS');
   const shootBtn = actionBtn('action-btn--shoot', 'shoot', 'SHOOT');
@@ -78,7 +93,7 @@ export function matchScreen({ go, state }) {
 
   const el = h('main', { class: 'screen screen--match' }, canvas, hud, banner, toast, controls);
 
-  // ---------- game ----------
+  // ---------- banners ----------
   let bannerTimer = 0;
   let toastTimer = 0;
   const showBanner = (title, sub, kind = 'gold') => {
@@ -86,70 +101,188 @@ export function matchScreen({ go, state }) {
     banner.replaceChildren(h('span', { class: 'display-xl' }, title), sub ? h('span', { class: 'label' }, sub) : null);
     bannerTimer = 2.4;
   };
-  const showToast = (text) => {
+  const showToast = (text, seconds = 1.4) => {
     toast.replaceChildren(h('span', { class: 'label' }, text));
     toast.classList.add('is-visible');
-    toastTimer = 1.4;
+    toastTimer = seconds;
   };
 
-  let pendingFulltime = 0;
-  const match = new Match({
-    home: homeTeam, away: awayTeam, kits, duration, difficulty: state.difficulty,
-    onEvent(type, data) {
-      if (type === 'goal') {
-        homeScore.textContent = match.home.score;
-        awayScore.textContent = match.away.score;
-        showBanner('GOAL!', `${data.minute} ${data.scorer.toUpperCase()} · ${data.teamCode}`);
-      } else if (type === 'restart') {
-        if (data.kind !== 'kickoff') showToast(data.label);
-      } else if (type === 'save') {
-        showToast('SAVED');
-      } else if (type === 'stoppage') {
-        showToast(`+${data.minutes} MIN ADDED`);
-      } else if (type === 'halftime') {
-        openHalfTime();
-      } else if (type === 'fulltime') {
-        showBanner('FULL TIME', `${homeTeam.code} ${match.home.score} - ${match.away.score} ${awayTeam.code}`, 'navy');
-        pendingFulltime = 2.2;
-      }
-    },
-  });
+  // ---------- match events (shared by every mode) ----------
+  let fulltimeTimer = 0;
+  let finalSummary = null;
+  let finished = false;
 
+  function onMatchEvent(type, data) {
+    if (type === 'goal') {
+      showBanner('GOAL!', `${data.minute} ${data.scorer.toUpperCase()} · ${data.teamCode}`);
+    } else if (type === 'restart') {
+      if (data.kind !== 'kickoff') showToast(data.label);
+    } else if (type === 'save') {
+      showToast('SAVED');
+    } else if (type === 'stoppage') {
+      showToast(`+${data.minutes} MIN ADDED`);
+    } else if (type === 'halftime') {
+      openHalfTime(data.summary);
+    } else if (type === 'secondhalf') {
+      closeOverlay();
+      renderer.followCamera(0, true);
+    } else if (type === 'fulltime') {
+      finished = true;
+      finalSummary = data.summary;
+      const s = data.summary;
+      showBanner('FULL TIME', `${homeTeam.code} ${s.home.score} - ${s.away.score} ${awayTeam.code}`, 'navy');
+      // A timer (not the frame loop) so this also happens in a background tab.
+      fulltimeTimer = setTimeout(finishMatch, 2200);
+    }
+  }
+
+  // Engine events: handled locally, and forwarded to the guest when hosting.
+  function engineEvent(type, data) {
+    let payload = data;
+    if (type === 'restart') payload = { kind: data.kind, label: data.label };
+    if (type === 'save') payload = {};
+    if (type === 'halftime' || type === 'fulltime') payload = { summary: match.summary() };
+    if (mode === 'host') {
+      const wire = type === 'halftime' || type === 'fulltime' ? { summary: encodeSummary(payload.summary) } : payload;
+      room.send('event', { type, data: wire });
+    }
+    onMatchEvent(type, payload);
+  }
+
+  const match = new Match({
+    home: homeTeam, away: awayTeam, kits, duration,
+    difficulty: online ? 'normal' : state.difficulty,
+    humans: online ? { home: true, away: true } : { home: true, away: false },
+    onEvent: mode === 'guest' ? () => {} : engineEvent,
+  });
+  const localTeam = match[localSide];
+
+  // ---------- online plumbing ----------
+  const offs = [];
+  const remote = mode === 'host' ? new RemoteInput() : null;
+  const mirror = mode === 'guest' ? new StateMirror(match) : null;
+  const sender = mode === 'guest' ? new InputSender(room) : null;
+  let lastStateSent = 0;
+  let guestCharge = 0;
+  let waitingShown = false;
+
+  if (mode === 'host') {
+    offs.push(room.on('input', (msg) => remote.receive(msg)));
+  }
+  if (mode === 'guest') {
+    offs.push(room.on('state', (msg) => mirror.receive(msg)));
+    offs.push(room.on('event', ({ type, data }) => {
+      if (type === 'halftime' || type === 'fulltime') {
+        onMatchEvent(type, { summary: decodeSummary(data.summary) });
+      } else if (type === 'abandon') {
+        opponentLeft();
+      } else {
+        onMatchEvent(type, data);
+      }
+    }));
+  }
+  if (online) {
+    offs.push(room.on('left', () => opponentLeft()));
+    offs.push(room.on('leave', () => opponentLeft()));
+  }
+
+  function opponentLeft(reason) {
+    if (finished || leftShown) return;
+    leftShown = true;
+    paused = mode === 'host';
+    closeOverlay();
+    overlay = h('div', { class: 'overlay', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Match ended' },
+      Card({ class: 'dialog' },
+        h('h2', { class: 'display-lg' }, reason === 'lost' ? 'CONNECTION LOST' : 'OPPONENT LEFT'),
+        h('p', { class: 'body text-muted' }, reason === 'lost'
+          ? 'The connection to your opponent dropped. This match will not be saved.'
+          : `${oppName || 'Your opponent'} left the match. This match will not be saved.`),
+        h('div', { class: 'dialog__actions' },
+          Button('PLAY ONLINE', { variant: 'primary', onClick: () => go('online') }),
+          Button('MENU', { onClick: () => go('home') }))));
+    el.append(overlay);
+    overlay.querySelector('button').focus();
+  }
+
+  // ---------- loop ----------
   let renderer;
   let input;
   let paused = false;
   let overlay = null;
+  let leftShown = false;
   let raf = 0;
   let last = performance.now();
+  let lastSim = performance.now();
   let acc = 0;
   let lastHasBall = null;
   let lastClock = '';
   let lastLeft = '';
+  let lastScore = '';
+  let halftimeTimer = 0;
+
+  const flipMove = (snap) => {
+    if (renderer.flip) snap.move = [-snap.move[0], -snap.move[1]];
+    return snap;
+  };
+
+  // Advance the simulation (solo and host). Also called from a timer so a host
+  // in a background tab keeps the match moving, if slowly.
+  function simulate(now) {
+    const dt = Math.min(1, (now - lastSim) / 1000);
+    lastSim = now;
+    if (paused) return;
+    acc += dt;
+    while (acc >= STEP) {
+      const inputs = { home: flipMove(input.snapshot()) };
+      if (mode === 'host') inputs.away = remote.snapshot();
+      match.update(STEP, inputs);
+      acc -= STEP;
+    }
+    if (mode === 'host' && now - lastStateSent >= SEND_INTERVAL_MS) {
+      lastStateSent = now;
+      room.send('state', encodeState(match));
+    }
+  }
 
   function frame(now) {
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    if (!paused) {
-      acc += dt;
-      while (acc >= STEP) {
-        const snap = input.snapshot();
-        if (renderer.flip) {
-          snap.move = [-snap.move[0], -snap.move[1]];
-        }
-        match.update(STEP, snap);
-        acc -= STEP;
+
+    if (mode === 'guest') {
+      const snap = flipMove(input.snapshot());
+      sender.update(snap, now);
+      const mine = localTeam.controlled;
+      guestCharge = snap.shootDown && mine && match.ball.owner === mine ? guestCharge + dt : 0;
+      mirror.tick(dt);
+      const silent = now - mirror.lastHeard;
+      if (!finished && match.phase !== 'halftime' && silent > HOST_SILENCE_MS && !waitingShown) {
+        waitingShown = true;
+        showToast(`WAITING FOR ${(oppName || 'HOST').toUpperCase()}...`, 9999);
+      } else if (waitingShown && silent < HOST_SILENCE_MS) {
+        waitingShown = false;
+        toastTimer = 0.01;
       }
-      if (bannerTimer > 0 && (bannerTimer -= dt) <= 0) banner.classList.remove('is-visible');
-      if (toastTimer > 0 && (toastTimer -= dt) <= 0) toast.classList.remove('is-visible');
-      if (pendingFulltime > 0 && (pendingFulltime -= dt) <= 0) {
-        go('fullTime', { summary: match.summary(), duration, difficulty: state.difficulty });
-        return;
-      }
+      if (!finished && silent > LOST_MS) opponentLeft('lost');
+    } else {
+      simulate(now);
+      if (mode === 'host' && !finished && match.phase !== 'halftime' && now - remote.lastHeard > LOST_MS) opponentLeft('lost');
     }
-    renderer.flip = match.home.dir > 0; // you always attack up the screen
+
+    if (bannerTimer > 0 && (bannerTimer -= dt) <= 0) banner.classList.remove('is-visible');
+    if (toastTimer > 0 && (toastTimer -= dt) <= 0) toast.classList.remove('is-visible');
+    renderer.flip = localTeam.dir > 0; // you always attack up the screen
     renderer.draw(paused ? 0 : dt);
     updateHud();
+  }
+
+  function finishMatch() {
+    if (mode === 'solo') {
+      go('fullTime', { summary: finalSummary, duration, difficulty: state.difficulty });
+      return;
+    }
+    const summary = mode === 'guest' ? flipSummary(finalSummary) : finalSummary;
+    go('fullTime', { summary, duration, difficulty: 'online', opponentName: oppName, online: true });
   }
 
   function updateHud() {
@@ -158,7 +291,14 @@ export function matchScreen({ go, state }) {
     const s = Math.ceil(match.realSecondsLeft());
     const left = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} LEFT`;
     if (left !== lastLeft) { timeLeft.textContent = left; lastLeft = left; }
-    const hasBall = !!match.controlled && match.ball.owner === match.controlled;
+    const score = `${match.home.score}-${match.away.score}`;
+    if (score !== lastScore) {
+      lastScore = score;
+      homeScore.textContent = match.home.score;
+      awayScore.textContent = match.away.score;
+    }
+    const mine = localTeam.controlled;
+    const hasBall = !!mine && match.ball.owner === mine;
     if (hasBall !== lastHasBall) {
       lastHasBall = hasBall;
       passBtn.setGlyph(hasBall ? 'pass' : 'switch', hasBall ? 'PASS' : 'SWITCH');
@@ -173,17 +313,29 @@ export function matchScreen({ go, state }) {
   }
 
   function pause() {
-    if (paused || match.phase === 'halftime' || match.phase === 'fulltime') return;
-    paused = true;
+    if (overlay || match.phase === 'halftime' || match.phase === 'fulltime') return;
     input.reset();
-    overlay = h('div', { class: 'overlay', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Paused' },
-      Card({ class: 'dialog' },
-        h('h2', { class: 'display-lg' }, 'PAUSED'),
-        h('p', { class: 'body text-muted' }, `${homeTeam.name} ${match.home.score} - ${match.away.score} ${awayTeam.name}, ${match.clockLabel()}`),
-        h('div', { class: 'dialog__actions' },
-          Button('RESUME', { variant: 'primary', onClick: resume }),
-          Button('HOW TO PLAY', { onClick: () => Dialog({ title: 'HOW TO PLAY', body: howToPlay() }) }),
-          Button('QUIT MATCH', { onClick: () => go('home') }))));
+    if (online) {
+      // Online matches never stop: this is just a menu over the live game.
+      overlay = h('div', { class: 'overlay', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Menu' },
+        Card({ class: 'dialog' },
+          h('h2', { class: 'display-lg' }, 'MENU'),
+          h('p', { class: 'body text-muted' }, 'The match keeps playing while this is open.'),
+          h('div', { class: 'dialog__actions' },
+            Button('BACK TO MATCH', { variant: 'primary', onClick: closeOverlay }),
+            Button('HOW TO PLAY', { onClick: () => Dialog({ title: 'HOW TO PLAY', body: howToPlay() }) }),
+            Button('LEAVE MATCH', { onClick: leaveOnline }))));
+    } else {
+      paused = true;
+      overlay = h('div', { class: 'overlay', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Paused' },
+        Card({ class: 'dialog' },
+          h('h2', { class: 'display-lg' }, 'PAUSED'),
+          h('p', { class: 'body text-muted' }, `${homeTeam.name} ${match.home.score} - ${match.away.score} ${awayTeam.name}, ${match.clockLabel()}`),
+          h('div', { class: 'dialog__actions' },
+            Button('RESUME', { variant: 'primary', onClick: resume }),
+            Button('HOW TO PLAY', { onClick: () => Dialog({ title: 'HOW TO PLAY', body: howToPlay() }) }),
+            Button('QUIT MATCH', { onClick: () => go('home') }))));
+    }
     el.append(overlay);
     overlay.querySelector('button').focus();
   }
@@ -192,68 +344,114 @@ export function matchScreen({ go, state }) {
     closeOverlay();
     paused = false;
     last = performance.now();
+    lastSim = last;
   }
 
-  function openHalfTime() {
-    paused = true;
+  function leaveOnline() {
+    room.send('event', { type: 'abandon', data: {} });
+    go('online');
+  }
+
+  function startSecondHalf() {
+    if (mode === 'guest' || match.phase !== 'halftime') return;
+    clearTimeout(halftimeTimer);
+    closeOverlay();
+    match.startSecondHalf();
+    if (mode === 'host') room.send('event', { type: 'secondhalf', data: {} });
+    renderer.flip = localTeam.dir > 0;
+    renderer.followCamera(0, true);
+    paused = false;
+    last = performance.now();
+    lastSim = last;
+  }
+
+  function openHalfTime(summary) {
     input.reset();
+    closeOverlay();
+    if (mode === 'solo') paused = true;
+    const view = mode === 'guest' ? flipSummary(summary) : summary;
+    let action;
+    if (mode === 'guest') {
+      action = h('p', { class: 'body text-muted' }, `Waiting for ${oppName || 'the host'} to start the second half.`);
+    } else {
+      action = Button('SECOND HALF', { variant: 'primary', onClick: startSecondHalf });
+      if (mode === 'host') halftimeTimer = setTimeout(startSecondHalf, 30000); // don't leave the guest waiting forever
+    }
     overlay = h('div', { class: 'overlay', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Half time' },
       Card({ class: 'dialog' },
         h('h2', { class: 'display-lg' }, 'HALF TIME'),
-        h('p', { class: 'display-xl result-score' }, `${match.home.score} - ${match.away.score}`),
-        statsTable(match.summary()),
-        h('div', { class: 'dialog__actions' },
-          Button('SECOND HALF', {
-            variant: 'primary',
-            onClick: () => {
-              closeOverlay();
-              match.startSecondHalf();
-              renderer.flip = match.home.dir > 0;
-              renderer.followCamera(0, true);
-              paused = false;
-              last = performance.now();
-            },
-          }))));
+        h('p', { class: 'display-xl result-score' }, `${view.home.score} - ${view.away.score}`),
+        statsTable(view),
+        mode === 'host' ? h('p', { class: 'caption text-muted' }, 'THE SECOND HALF STARTS AUTOMATICALLY IN 30 SECONDS.') : null,
+        h('div', { class: 'dialog__actions' }, action)));
     el.append(overlay);
-    overlay.querySelector('button').focus();
+    const btn = overlay.querySelector('button');
+    if (btn) btn.focus();
   }
 
   pauseBtn.addEventListener('click', pause);
   const onKey = (e) => {
     const k = e.key.toLowerCase();
     if (k === 'p' || k === 'escape') {
-      if (paused && overlay && match.phase !== 'halftime') resume();
+      if (overlay && match.phase !== 'halftime' && !leftShown) (online ? closeOverlay() : resume());
       else pause();
     }
   };
-  const onVisibility = () => { if (document.hidden) pause(); };
+  const onVisibility = () => { if (document.hidden && !online) pause(); };
   const onResize = () => renderer && renderer.resize();
+  let bgTimer = 0;
+  let destroyed = false;
 
-  // Start once the canvas is in the DOM and has a size.
-  requestAnimationFrame(() => {
+  // Start once the canvas is in the DOM (a timeout, not an animation frame, so a
+  // match that opens in a background tab still starts).
+  setTimeout(() => {
+    if (destroyed) return;
     renderer = new Renderer(canvas, match);
+    renderer.localTeam = localTeam;
     renderer.playerName = playerName;
+    renderer.opponentName = oppName;
+    if (mode === 'guest') renderer.getCharge = () => clamp(guestCharge / 0.8, 0, 1);
+    renderer.flip = localTeam.dir > 0;
     renderer.followCamera(0, true);
     input = new Input({ joystick, knob, passBtn, shootBtn, sprintBtn });
     window.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('resize', onResize);
-    showBanner('KICK OFF', `${homeTeam.name.toUpperCase()} VS ${awayTeam.name.toUpperCase()}`, 'navy');
+    const sub = online
+      ? `${(playerName || 'YOU').toUpperCase()} VS ${(oppName || 'FRIEND').toUpperCase()}`
+      : `${homeTeam.name.toUpperCase()} VS ${awayTeam.name.toUpperCase()}`;
+    showBanner('KICK OFF', sub, 'navy');
     last = performance.now();
+    lastSim = last;
     raf = requestAnimationFrame(frame);
-  });
+    // Background tabs get no animation frames: keep a hosted match ticking and
+    // keep the guest's "still here" input flowing so the host doesn't give up.
+    if (mode === 'host') bgTimer = setInterval(() => { if (document.hidden) simulate(performance.now()); }, 250);
+    if (mode === 'guest') {
+      bgTimer = setInterval(() => {
+        if (!document.hidden) return;
+        sender.update({ move: [0, 0], sprint: false, passPressed: false, shootPressed: false, shootReleased: false }, performance.now());
+      }, 500);
+    }
+  }, 0);
 
   // Debug hook for automated checks.
-  window.__fh = { match };
+  window.__fh = { match, mode };
 
   return {
     el,
     destroy() {
+      destroyed = true;
       cancelAnimationFrame(raf);
+      clearTimeout(fulltimeTimer);
+      clearTimeout(halftimeTimer);
+      clearInterval(bgTimer);
       input && input.destroy();
+      offs.forEach((off) => off());
       window.removeEventListener('keydown', onKey);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
+      if (room) room.leave();
       delete window.__fh;
     },
   };

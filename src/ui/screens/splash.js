@@ -8,7 +8,11 @@ export function splashScreen({ go }) {
     if (starting) return;
     starting = true;
     const { name } = await getPlayer();
-    go(name ? 'home' : 'profile', { mode: 'first' });
+    const code = new URLSearchParams(location.search).get('room');
+    if (code) history.replaceState(null, '', location.pathname); // use the invite once
+    const next = code ? { screen: 'online', args: { code } } : { screen: 'home', args: {} };
+    if (name) go(next.screen, next.args);
+    else go('profile', { mode: 'first', next });
   };
   const el = h('main', { class: 'screen screen--splash', onClick: start },
     h('img', { class: 'splash__logo', src: 'design-system/logos/football-heroes-logo.png', alt: 'Football Heroes 2026' }),

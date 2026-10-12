@@ -18,6 +18,9 @@ export class Renderer {
     this.camY = PITCH_L / 2;
     this.flip = false;
     this.playerName = ''; // shown above the player you control
+    this.opponentName = ''; // online: shown above the player your opponent controls
+    this.localTeam = match.home; // the side this screen's person plays
+    this.getCharge = () => match.shotChargeOf(this.localTeam);
     this.resize();
   }
 
@@ -150,7 +153,7 @@ export class Renderer {
     const r = BODY_R * scale;
     const kit = p.team.kit;
     const isGK = p.role === 'GK';
-    const fill = isGK ? (p.team.isUser ? 'cyan-energy' : 'sun-amber') : kit;
+    const fill = isGK ? (p.team === this.localTeam ? 'cyan-energy' : 'sun-amber') : kit;
     const ink = textOn(fill);
 
     // Facing notch, so you can see where a player will pass.
@@ -203,9 +206,16 @@ export class Renderer {
   }
 
   drawControlled() {
-    const p = this.match.controlled;
-    if (!p || this.match.phase === 'goal') return;
+    if (this.match.phase === 'goal') return;
     const { ctx, scale } = this;
+    // Opponent's player (online only): name tag, no ring.
+    const rival = this.match.opponentsOf(this.localTeam);
+    if (this.opponentName && rival.controlled) {
+      const [ox, oy] = this.toScreen(rival.controlled.x, rival.controlled.y);
+      this.drawNameTag(this.opponentName.toUpperCase(), ox, oy - BODY_R * scale * 1.6 - 4);
+    }
+    const p = this.localTeam.controlled;
+    if (!p) return;
     const [sx, sy] = this.toScreen(p.x, p.y);
     const r = BODY_R * scale;
     // `badge-yellow` ring and marker above the player you control.
@@ -226,7 +236,7 @@ export class Renderer {
     if (this.playerName) this.drawNameTag(this.playerName.toUpperCase(), sx, top - r * 0.2 - 6);
 
     // Shot power bar.
-    const charge = this.match.ball.owner === p ? this.match.shotCharge : 0;
+    const charge = this.match.ball.owner === p ? this.getCharge() : 0;
     if (charge > 0) {
       const w = r * 4;
       const h = Math.max(5, r * 0.4);

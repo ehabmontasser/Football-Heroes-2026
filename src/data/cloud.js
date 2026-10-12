@@ -14,7 +14,7 @@ export const HCAPTCHA_SITE_KEY = '104a8db0-8be0-4b42-839a-c402a6e26bd4';
 
 const NAME_KEY = 'fh26-name';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: 'fh26-auth' },
 });
 
@@ -78,7 +78,7 @@ function friendlyAuthError(error) {
   return 'Could not sign you in right now. Please try again.';
 }
 
-export async function saveMatch(summary, { duration, difficulty }) {
+export async function saveMatch(summary, { duration, difficulty, opponentName = null }) {
   try {
     const session = await currentSession();
     if (!session) return { ok: false, reason: 'signed-out' };
@@ -94,6 +94,7 @@ export async function saveMatch(summary, { duration, difficulty }) {
       goals: summary.goals,
       stats: { home: strip(summary.home), away: strip(summary.away) },
       player_name: name || null,
+      opponent_name: opponentName,
     });
     if (error) throw error;
     return { ok: true };
@@ -108,7 +109,7 @@ export async function listMatches(limit = 30) {
     if (!(await currentSession())) return { ok: false, reason: 'signed-out', matches: [] };
     const { data, error } = await supabase
       .from('matches')
-      .select('id, home_team, away_team, home_score, away_score, duration_min, difficulty, goals, played_at')
+      .select('id, home_team, away_team, home_score, away_score, duration_min, difficulty, opponent_name, goals, played_at')
       .order('played_at', { ascending: false })
       .limit(limit);
     if (error) throw error;

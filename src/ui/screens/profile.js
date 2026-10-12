@@ -22,7 +22,7 @@ function loadCaptcha() {
 // First visit: "ENTER YOUR NAME" (creates the player). Later: rename from home.
 export function profileScreen({ go, args }) {
   const first = args.mode !== 'edit';
-  const next = () => go('home');
+  const next = () => (args.next ? go(args.next.screen, args.next.args) : go('home'));
 
   const input = h('input', {
     id: 'player-name', class: 'input body', type: 'text', maxlength: '16', autocomplete: 'nickname',

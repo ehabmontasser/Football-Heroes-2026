@@ -9,6 +9,8 @@ import { matchScreen } from './ui/screens/match.js';
 import { fullTimeScreen } from './ui/screens/fullTime.js';
 import { historyScreen } from './ui/screens/history.js';
 import { profileScreen } from './ui/screens/profile.js';
+import { onlineScreen } from './ui/screens/online.js';
+import { onlineLobbyScreen } from './ui/screens/onlineLobby.js';
 
 const SCREENS = {
   splash: splashScreen,
@@ -20,6 +22,8 @@ const SCREENS = {
   fullTime: fullTimeScreen,
   history: historyScreen,
   profile: profileScreen,
+  online: onlineScreen,
+  onlineLobby: onlineLobbyScreen,
 };
 
 const params = new URLSearchParams(location.search);
@@ -48,4 +52,5 @@ export function go(name, args = {}) {
   if (heading) heading.setAttribute('tabindex', '-1');
 }
 
+// Invite links (?room=CODE) go through the splash, then straight to joining.
 go(params.get('screen') && SCREENS[params.get('screen')] ? params.get('screen') : 'splash');

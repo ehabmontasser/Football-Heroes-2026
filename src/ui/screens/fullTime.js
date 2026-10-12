@@ -25,16 +25,17 @@ export function fullTimeScreen({ go, state, args }) {
   if (!s) { queueMicrotask(() => go('home')); return { el: h('main') }; }
   const { home, away, goals } = s;
   const result = home.score > away.score ? 'YOU WIN' : home.score < away.score ? 'YOU LOSE' : 'DRAW';
+  const vs = args.online && args.opponentName ? ` (${args.opponentName})` : '';
   const line = home.score > away.score
-    ? `${home.team.name} beat ${away.team.name}.`
+    ? `${home.team.name} beat ${away.team.name}${vs}.`
     : home.score < away.score
-      ? `${away.team.name} took this one. Try again or drop the difficulty.`
+      ? `${away.team.name}${vs} took this one.${args.online ? ' Go again from PLAY ONLINE.' : ' Try again or drop the difficulty.'}`
       : 'Honours even after 90 minutes.';
 
   // Save once per finished match (args are reused if the screen is revisited).
   const saveStatus = h('p', { class: 'caption text-muted save-status', role: 'status' }, 'SAVING TO MATCH HISTORY...');
   if (!args.saved) {
-    args.saved = saveMatch(s, { duration: args.duration, difficulty: args.difficulty });
+    args.saved = saveMatch(s, { duration: args.duration, difficulty: args.difficulty, opponentName: args.opponentName || null });
   }
   args.saved.then(({ ok, reason }) => {
     saveStatus.textContent = ok ? 'SAVED TO MATCH HISTORY'
@@ -58,10 +59,15 @@ export function fullTimeScreen({ go, state, args }) {
         h('ul', { class: 'scorers__list scorers__list--away' }, scorers('away'))),
       saveStatus),
     Card({ class: 'result-card' }, h('h2', { class: 'title' }, 'MATCH STATS'), statsTable(s)),
-    h('div', { class: 'result-actions' },
-      Button('REMATCH', { variant: 'primary', onClick: () => go('match') }),
-      Button('NEW MATCH', { onClick: () => go('teamSelect', { mode: 'pick' }) }),
-      Button('HISTORY', { onClick: () => go('history') }),
-      Button('MENU', { onClick: () => go('home') })));
+    args.online
+      ? h('div', { class: 'result-actions' },
+        Button('PLAY ONLINE', { variant: 'primary', onClick: () => go('online') }),
+        Button('HISTORY', { onClick: () => go('history') }),
+        Button('MENU', { onClick: () => go('home') }))
+      : h('div', { class: 'result-actions' },
+        Button('REMATCH', { variant: 'primary', onClick: () => go('match') }),
+        Button('NEW MATCH', { onClick: () => go('teamSelect', { mode: 'pick' }) }),
+        Button('HISTORY', { onClick: () => go('history') }),
+        Button('MENU', { onClick: () => go('home') })));
   return { el };
 }
