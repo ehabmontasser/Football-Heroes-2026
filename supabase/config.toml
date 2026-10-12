@@ -1,0 +1,5 @@
+# Supabase project config for Football Heroes 2026.
+# Remote project: "Football Heroes 2026" (ref xtrjuwvytdfcckgcmqhx, eu-west-2).
+# Database changes go in supabase/migrations/ as timestamped .sql files; the
+# Supabase GitHub integration applies them to the project when they land on main.
+project_id = "football-heroes-2026"
