@@ -4,6 +4,7 @@ import { Match } from '../../game/engine.js';
 import { Renderer } from '../../game/render.js';
 import { Input } from '../../game/input.js';
 import { resolveKits } from '../../theme.js';
+import { getPlayer } from '../../data/cloud.js';
 import { howToPlay } from './howToPlay.js';
 import { statsTable } from './fullTime.js';
 
@@ -44,6 +45,19 @@ export function matchScreen({ go, state }) {
       awayScore, h('span', { class: 'label' }, awayTeam.code), swatch(awayTeam, kits.away)),
     h('div', { class: 'capsule match-clock' }, clock, timeLeft),
     pauseBtn);
+
+  // Your name: in the HUD next to the clock, and above your player on the pitch.
+  const nameCapsule = h('div', { class: 'capsule match-player', hidden: true },
+    swatch(homeTeam, kits.home), h('span', { class: 'label match-player__name' }, ''));
+  hud.insertBefore(nameCapsule, hud.children[1]);
+  let playerName = '';
+  getPlayer().then(({ name }) => {
+    if (!name) return;
+    playerName = name;
+    nameCapsule.querySelector('.match-player__name').textContent = name;
+    nameCapsule.hidden = false;
+    if (renderer) renderer.playerName = name;
+  });
 
   const banner = h('div', { class: 'match-banner', 'aria-live': 'polite' });
   const toast = h('div', { class: 'match-toast', 'aria-live': 'polite' });
@@ -218,6 +232,7 @@ export function matchScreen({ go, state }) {
   // Start once the canvas is in the DOM and has a size.
   requestAnimationFrame(() => {
     renderer = new Renderer(canvas, match);
+    renderer.playerName = playerName;
     renderer.followCamera(0, true);
     input = new Input({ joystick, knob, passBtn, shootBtn, sprintBtn });
     window.addEventListener('keydown', onKey);

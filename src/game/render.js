@@ -17,6 +17,7 @@ export class Renderer {
     this.camX = PITCH_W / 2;
     this.camY = PITCH_L / 2;
     this.flip = false;
+    this.playerName = ''; // shown above the player you control
     this.resize();
   }
 
@@ -222,6 +223,8 @@ export class Renderer {
     ctx.closePath();
     ctx.fill();
 
+    if (this.playerName) this.drawNameTag(this.playerName.toUpperCase(), sx, top - r * 0.2 - 6);
+
     // Shot power bar.
     const charge = this.match.ball.owner === p ? this.match.shotCharge : 0;
     if (charge > 0) {
@@ -234,5 +237,31 @@ export class Renderer {
       ctx.fillStyle = charge > 0.92 ? token('cta-red') : token('cyan-energy');
       ctx.fillRect(x, y, w * charge, h);
     }
+  }
+
+  // HUD-capsule style tag (navy-950, frame-blue stroke, `label` type) whose
+  // bottom edge sits at `bottom`.
+  drawNameTag(text, cx, bottom) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.font = `600 13px ${token('font-ui')}`;
+    ctx.letterSpacing = '0.6px';
+    const padX = 8;
+    const h = 22;
+    const w = Math.ceil(ctx.measureText(text).width) + padX * 2;
+    const x = Math.round(cx - w / 2);
+    const y = Math.round(bottom - h);
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, h / 2);
+    ctx.fillStyle = token('navy-950');
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = token('frame-blue');
+    ctx.stroke();
+    ctx.fillStyle = token('ink');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, cx, y + h / 2 + 1);
+    ctx.restore();
   }
 }

@@ -512,3 +512,6 @@ img { display: block; }
 .form-error { color: var(--badge-yellow); min-height: var(--space-6); }
 .form-error:empty { min-height: 0; }
 .captcha { min-height: var(--space-2); }
+.match-player { max-width: 40%; }
+.match-player[hidden] { display: none; }
+.match-player__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -78,7 +78,7 @@ Implemented in `src/styles.css` and `src/ui/components.js`. Build new screens fr
 - **Match HUD**: scoreboard capsule (kit swatch, code, score), clock capsule (match minute in `cyan-energy`, real time left in `ink-muted`), pause icon button.
 - **Match banner**: slanted ribbon, `display-xl`. GOAL uses `sun-gold` with `navy-950` text; KICK OFF / FULL TIME use `navy-950` with `frame-blue` stroke.
 - **Touch controls**: joystick (`size-joystick`) and round action buttons (`size-control`): SHOOT `cta-red`, PASS `navy-700`, SPRINT `navy-950` at `size-touch`. Glyphs are solid white, 24px.
-- **Pitch (canvas)**: `pitch-green` ground, `ink` lines at 80% opacity, mowing stripes as a 3.5% `ink` wash. Your controlled player gets a `badge-yellow` ring and marker. Goalkeepers wear `cyan-energy` (yours) or `sun-amber` (opponent).
+- **Pitch (canvas)**: `pitch-green` ground, `ink` lines at 80% opacity, mowing stripes as a 3.5% `ink` wash. Your controlled player gets a `badge-yellow` ring and marker, with your player name above it in a HUD-capsule tag (`navy-950`, `frame-blue` stroke, `label` type). The match HUD repeats the name in a capsule with your kit swatch. Goalkeepers wear `cyan-energy` (yours) or `sun-amber` (opponent).
 
 ## Tokens added in v1.1 (proposed)
 
