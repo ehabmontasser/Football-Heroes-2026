@@ -51,6 +51,8 @@ export function matchScreen({ go, state, args }) {
   const awayScore = h('span', { class: 'numeric scoreboard__score' }, '0');
   const clock = h('span', { class: 'numeric scoreboard__clock' }, "1'");
   const timeLeft = h('span', { class: 'caption text-muted' }, '');
+  // Online: round-trip delay to the other player, refreshed every 2 seconds.
+  const pingText = h('span', { class: 'caption ping', title: 'Delay to your opponent', hidden: true }, '');
   const pauseBtn = h('button', { class: 'icon-btn icon-btn--hud', type: 'button', 'aria-label': online ? 'Menu' : 'Pause' }, glyph('pause'));
 
   const hud = h('div', { class: 'match-hud' },
@@ -58,7 +60,7 @@ export function matchScreen({ go, state, args }) {
       swatch(homeTeam, kits.home), h('span', { class: 'label' }, homeTeam.code), homeScore,
       h('span', { class: 'scoreboard__dash numeric', 'aria-hidden': 'true' }, '-'),
       awayScore, h('span', { class: 'label' }, awayTeam.code), swatch(awayTeam, kits.away)),
-    h('div', { class: 'capsule match-clock' }, clock, timeLeft),
+    h('div', { class: 'capsule match-clock' }, clock, timeLeft, pingText),
     pauseBtn);
 
   // Your name: in the HUD next to the clock, and above your player on the pitch.
@@ -165,6 +167,8 @@ export function matchScreen({ go, state, args }) {
   let lastStateSent = 0;
   let guestCharge = 0;
   let waitingShown = false;
+  let rttMs = 150; // assumed until the first measurement
+  let pingTimer = 0;
 
   if (mode === 'host') {
     offs.push(room.on('input', (msg) => remote.receive(msg)));
@@ -184,6 +188,17 @@ export function matchScreen({ go, state, args }) {
   if (online) {
     offs.push(room.on('left', () => opponentLeft()));
     offs.push(room.on('leave', () => opponentLeft()));
+    // Ping: echo the other side's pings; time our own.
+    offs.push(room.on('ping', ({ t, from }) => room.send('pong', { t, to: from })));
+    offs.push(room.on('pong', ({ t, to }) => {
+      if (to !== mode) return;
+      const sample = performance.now() - t;
+      rttMs = rttMs === 150 && !pingText.textContent ? sample : rttMs * 0.7 + sample * 0.3;
+      const ms = Math.round(rttMs);
+      pingText.textContent = `${ms} MS`;
+      pingText.hidden = false;
+      pingText.classList.toggle('ping--slow', ms > 200);
+    }));
   }
 
   function opponentLeft(reason) {
@@ -254,7 +269,7 @@ export function matchScreen({ go, state, args }) {
       sender.update(snap, now);
       const mine = localTeam.controlled;
       guestCharge = snap.shootDown && mine && match.ball.owner === mine ? guestCharge + dt : 0;
-      mirror.tick(dt);
+      mirror.tick(dt, localTeam.controlled, snap, rttMs / 1000);
       const silent = now - mirror.lastHeard;
       if (!finished && match.phase !== 'halftime' && silent > HOST_SILENCE_MS && !waitingShown) {
         waitingShown = true;
@@ -427,6 +442,11 @@ export function matchScreen({ go, state, args }) {
     // Background tabs get no animation frames: keep a hosted match ticking and
     // keep the guest's "still here" input flowing so the host doesn't give up.
     if (mode === 'host') bgTimer = setInterval(() => { if (document.hidden) simulate(performance.now()); }, 250);
+    if (online) {
+      const ping = () => room.send('ping', { t: performance.now(), from: mode });
+      ping();
+      pingTimer = setInterval(ping, 2000);
+    }
     if (mode === 'guest') {
       bgTimer = setInterval(() => {
         if (!document.hidden) return;
@@ -446,6 +466,7 @@ export function matchScreen({ go, state, args }) {
       clearTimeout(fulltimeTimer);
       clearTimeout(halftimeTimer);
       clearInterval(bgTimer);
+      clearInterval(pingTimer);
       input && input.destroy();
       offs.forEach((off) => off());
       window.removeEventListener('keydown', onKey);

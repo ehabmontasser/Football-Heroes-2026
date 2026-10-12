@@ -525,3 +525,6 @@ img { display: block; }
 .lobby__status { color: var(--ink); }
 .screen--lobby { padding-bottom: calc(var(--size-touch) + var(--space-6) * 2); }
 .online-note { text-align: center; }
+.ping { color: var(--ink-muted); }
+.ping[hidden] { display: none; }
+.ping--slow { color: var(--badge-yellow); }

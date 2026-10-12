@@ -58,12 +58,12 @@ Tips:
 3. Your friend taps **PLAY ONLINE**, enters the code (or just opens the link) and picks a different team.
 4. The room creator chooses the match length and taps **KICK OFF**.
 
-How it works: the room creator's browser runs the match and streams it to the other player about 15 times a second over Supabase Realtime; the other player's controls travel back the same way. So the friend who joins will feel a small delay (typically a tenth of a second or two), and the room creator's connection matters most.
+How it works: the room creator's browser runs the match and streams it to the other player about 30 times a second over Supabase Realtime; the other player's controls travel back the same way. To hide the delay, the joining player's own footballer moves instantly on their screen and is gently corrected to match the host. Passes, shots and tackles still take one round trip, and the room creator's connection matters most. The delay to your opponent shows next to the match clock (yellow above 200 ms).
 
 - Online matches don't pause. The pause button opens a menu over the live game.
 - If either player leaves or the connection drops for 15 seconds, the match ends and isn't saved.
 - Finished online matches are saved to both players' Match History with the opponent's name.
-- Supabase's free plan includes a monthly Realtime message allowance; a 10-minute online match uses roughly 18,000 messages.
+- Supabase's free plan includes a monthly Realtime message allowance; a 10-minute online match uses roughly 20,000 to 35,000 messages, depending on how much the joining player moves.
 
 ## Match history (Supabase)
 

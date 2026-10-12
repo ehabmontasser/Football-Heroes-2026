@@ -26,7 +26,7 @@ export class Room {
       config: { broadcast: { self: false, ack: false }, presence: { key: this.me.id } },
     });
     this.channel.on('presence', { event: 'sync' }, () => this.onPresence());
-    for (const event of ['setup', 'state', 'event', 'input', 'leave']) {
+    for (const event of ['setup', 'state', 'event', 'input', 'leave', 'ping', 'pong']) {
       this.channel.on('broadcast', { event }, ({ payload }) => this.emit(event, payload));
     }
   }
