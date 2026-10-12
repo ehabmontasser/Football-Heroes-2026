@@ -10,7 +10,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // and by the CAPTCHA secret stored in Supabase Auth.
 const SUPABASE_URL = 'https://xtrjuwvytdfcckgcmqhx.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_AucZF9YKd3o7BpfGyuJ9qQ_yl8tHd8q';
-export const HCAPTCHA_SITE_KEY = '';
+export const HCAPTCHA_SITE_KEY = '104a8db0-8be0-4b42-839a-c402a6e26bd4';
 
 const NAME_KEY = 'fh26-name';
 
