@@ -36,8 +36,10 @@ export function fullTimeScreen({ go, state, args }) {
   if (!args.saved) {
     args.saved = saveMatch(s, { duration: args.duration, difficulty: args.difficulty });
   }
-  args.saved.then(({ ok }) => {
-    saveStatus.textContent = ok ? 'SAVED TO MATCH HISTORY' : 'NOT SAVED: YOU ARE OFFLINE';
+  args.saved.then(({ ok, reason }) => {
+    saveStatus.textContent = ok ? 'SAVED TO MATCH HISTORY'
+      : reason === 'signed-out' ? 'NOT SAVED: SET UP YOUR PLAYER TO SAVE MATCHES'
+        : 'NOT SAVED: YOU ARE OFFLINE';
   });
 
   const scorers = (side) => goals.filter((g) => g.side === side).map((g) => h('li', { class: 'body' }, `${g.scorer} ${g.minute}`));

@@ -1,5 +1,6 @@
 import { h, Button, Card, Capsule, Dialog } from '../components.js';
 import { howToPlay } from './howToPlay.js';
+import { getPlayer } from '../../data/cloud.js';
 
 export function homeScreen({ go, state }) {
   const play = () => {
@@ -8,10 +9,22 @@ export function homeScreen({ go, state }) {
     go('teamSelect', { mode: 'pick' });
   };
 
+  // Player name capsule: tap to rename.
+  const nameText = h('span', { class: 'label player-pill__name' }, '');
+  const playerPill = h('button', { class: 'capsule player-pill', type: 'button', 'aria-label': 'Change your player name', onClick: () => go('profile', { mode: 'edit' }) },
+    h('span', { class: 'caption text-muted' }, 'PLAYER'), nameText);
+  playerPill.hidden = true;
+  getPlayer().then(({ name }) => {
+    if (!name) return;
+    nameText.textContent = name;
+    playerPill.hidden = false;
+  });
+
   const el = h('main', { class: 'screen screen--home' },
     h('div', { class: 'hud-row' },
       h('img', { class: 'hud-shield', src: 'design-system/logos/football-heroes-shield.png', alt: 'Football Heroes' }),
-      Capsule(h('span', { class: 'label' }, 'WORLD EDITION'), h('span', { class: 'numeric' }, '2026'))),
+      Capsule(h('span', { class: 'label' }, 'WORLD EDITION'), h('span', { class: 'numeric' }, '2026')),
+      playerPill),
     h('div', { class: 'home__grid' },
       Card({ class: 'card--featured mode-card' },
         h('span', { class: 'caption mode-card__kicker' }, 'FEATURED MODE'),

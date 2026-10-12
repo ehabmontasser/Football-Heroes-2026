@@ -1,4 +1,4 @@
-import { h, Card, KitSwatch, ScreenHeader } from '../components.js';
+import { h, Button, Card, KitSwatch, ScreenHeader } from '../components.js';
 import { getTeam } from '../../data/teams.js';
 import { listMatches } from '../../data/cloud.js';
 
@@ -15,8 +15,14 @@ export function historyScreen({ go }) {
     body);
 
   let alive = true;
-  listMatches().then(({ ok, matches }) => {
+  listMatches().then(({ ok, reason, matches }) => {
     if (!alive) return;
+    if (reason === 'signed-out') {
+      body.replaceChildren(Card({}, h('h2', { class: 'title' }, 'SAVING IS OFF'),
+        h('p', { class: 'body text-muted' }, 'You are playing without saving. Set up your player to keep a history of your matches.'),
+        Button('SET UP PLAYER', { onClick: () => go('profile', { mode: 'edit' }) })));
+      return;
+    }
     if (!ok) {
       body.replaceChildren(Card({}, h('h2', { class: 'title' }, 'OFFLINE'),
         h('p', { class: 'body text-muted' }, 'Your match history could not be loaded. Check your connection and try again.')));

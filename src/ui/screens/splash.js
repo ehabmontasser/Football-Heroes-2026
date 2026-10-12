@@ -1,7 +1,15 @@
 import { h } from '../components.js';
+import { getPlayer } from '../../data/cloud.js';
 
 export function splashScreen({ go }) {
-  const start = () => go('home');
+  // First visit goes to the name screen; returning players go straight home.
+  let starting = false;
+  const start = async () => {
+    if (starting) return;
+    starting = true;
+    const { name } = await getPlayer();
+    go(name ? 'home' : 'profile', { mode: 'first' });
+  };
   const el = h('main', { class: 'screen screen--splash', onClick: start },
     h('img', { class: 'splash__logo', src: 'design-system/logos/football-heroes-logo.png', alt: 'Football Heroes 2026' }),
     h('p', { class: 'body splash__sub' }, '32 nations. One pitch. Your 90 minutes.'),

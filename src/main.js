@@ -8,6 +8,7 @@ import { matchSetupScreen } from './ui/screens/matchSetup.js';
 import { matchScreen } from './ui/screens/match.js';
 import { fullTimeScreen } from './ui/screens/fullTime.js';
 import { historyScreen } from './ui/screens/history.js';
+import { profileScreen } from './ui/screens/profile.js';
 
 const SCREENS = {
   splash: splashScreen,
@@ -18,6 +19,7 @@ const SCREENS = {
   match: matchScreen,
   fullTime: fullTimeScreen,
   history: historyScreen,
+  profile: profileScreen,
 };
 
 const params = new URLSearchParams(location.search);

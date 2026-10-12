@@ -71,6 +71,10 @@ Implemented in `src/styles.css` and `src/ui/components.js`. Build new screens fr
 - **Team tile**: card with kit swatch, `numeric` rating, `title` name, finish in `ink-muted`, badges, and a `navy-950` SQUAD footer. Selected = `cyan-energy` stroke.
 - **Action bar**: fixed bottom bar on `pitch-green` with a selection summary and the primary button.
 - **Dialog**: card on a `navy-950` scrim at 80%.
+- **Text input**: `navy-950` fill, `frame-blue` stroke, `radius-md`, min height `size-touch`, `body` type, placeholder `ink-muted`; label above in `label`, hint below in `caption` `ink-muted`.
+- **Form error**: `body` text in `badge-yellow` under the field (red text fails contrast on navy, so errors use yellow).
+- **Player pill**: HUD capsule at the right of the home HUD row with a `caption` PLAYER tag and the name in `label` weight, sentence case as typed; tap to rename.
+- **Outcome tag** (match history): WIN `badge-yellow`/`navy-950`, DRAW `navy-700`/`ink`, LOSS `navy-950`/`ink-muted` with a `navy-700` stroke, `radius-sm`, `caption`.
 - **Match HUD**: scoreboard capsule (kit swatch, code, score), clock capsule (match minute in `cyan-energy`, real time left in `ink-muted`), pause icon button.
 - **Match banner**: slanted ribbon, `display-xl`. GOAL uses `sun-gold` with `navy-950` text; KICK OFF / FULL TIME use `navy-950` with `frame-blue` stroke.
 - **Touch controls**: joystick (`size-joystick`) and round action buttons (`size-control`): SHOOT `cta-red`, PASS `navy-700`, SPRINT `navy-950` at `size-touch`. Glyphs are solid white, 24px.

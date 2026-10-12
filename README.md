@@ -54,10 +54,11 @@ Tips:
 
 Every finished match is saved to the **Football Heroes 2026** Supabase project and listed on the **Match History** screen.
 
-- Each browser signs in anonymously the first time, so there is no account to create. The history belongs to that browser.
+- On the first visit the game asks for a player name and runs an hCaptcha human check, then signs the browser in anonymously. There is no password; the history belongs to that browser. Tap your name on the home screen to change it.
+- **Play without saving** skips the sign-in; the name is kept on the device only.
 - Row level security keeps every player's matches private (see `supabase/migrations/`).
 - If Supabase can't be reached, the game still plays; the match just isn't saved.
-- The project URL and publishable key are in `src/data/cloud.js`. The publishable key is designed to be public; access is controlled by the database policies.
+- The project URL, publishable key and hCaptcha site key are in `src/data/cloud.js`. All three are designed to be public; access is controlled by the database policies and the hCaptcha secret stored in Supabase Auth (Authentication > Attack Protection).
 
 Database changes go in `supabase/migrations/` as timestamped `.sql` files. The Supabase GitHub integration applies them to the project when they're merged to `main`.
 
