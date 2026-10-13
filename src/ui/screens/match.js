@@ -73,7 +73,7 @@ export function matchScreen({ go, state, args }) {
     playerName = name;
     nameCapsule.querySelector('.match-player__name').textContent = name;
     nameCapsule.hidden = false;
-    if (renderer) renderer.playerName = name;
+    if (renderer) { renderer.playerName = name; updateInsets(); }
   });
 
   const banner = h('div', { class: 'match-banner', 'aria-live': 'polite' });
@@ -234,6 +234,7 @@ export function matchScreen({ go, state, args }) {
   let lastLeft = '';
   let lastScore = '';
   let halftimeTimer = 0;
+  let insetClock = 0;
 
   const flipMove = (snap) => {
     if (renderer.flip) snap.move = [-snap.move[0], -snap.move[1]];
@@ -287,6 +288,7 @@ export function matchScreen({ go, state, args }) {
     if (bannerTimer > 0 && (bannerTimer -= dt) <= 0) banner.classList.remove('is-visible');
     if (toastTimer > 0 && (toastTimer -= dt) <= 0) toast.classList.remove('is-visible');
     renderer.flip = localTeam.dir > 0; // you always attack up the screen
+    if ((insetClock += dt) > 0.5) { insetClock = 0; updateInsets(); }
     renderer.draw(paused ? 0 : dt);
     updateHud();
   }
@@ -413,7 +415,21 @@ export function matchScreen({ go, state, args }) {
     }
   };
   const onVisibility = () => { if (document.hidden && !online) pause(); };
-  const onResize = () => renderer && renderer.resize();
+  // Keep the camera's clear area in step with the HUD and controls (the HUD
+  // grows when your name loads or wraps onto two rows on small phones).
+  const gap = 8;
+  function updateInsets() {
+    if (!renderer) return;
+    const screen = el.getBoundingClientRect();
+    const top = hud.getBoundingClientRect().bottom - screen.top + gap;
+    // Goals sit mid-screen horizontally, so only the part of the controls that
+    // reaches the middle matters: the action buttons' top edge, roughly.
+    const cluster = controls.querySelector('.action-cluster').getBoundingClientRect();
+    const bottom = screen.bottom - (cluster.top + cluster.height * 0.45) + gap;
+    renderer.setInsets(top, bottom);
+  }
+  const onResize = () => { if (renderer) { renderer.resize(); updateInsets(); } };
+  const insetObserver = new ResizeObserver(() => updateInsets());
   let bgTimer = 0;
   let destroyed = false;
 
@@ -427,6 +443,9 @@ export function matchScreen({ go, state, args }) {
     renderer.opponentName = oppName;
     if (mode === 'guest') renderer.getCharge = () => clamp(guestCharge / 0.8, 0, 1);
     renderer.flip = localTeam.dir > 0;
+    updateInsets();
+    insetObserver.observe(hud);
+    insetObserver.observe(controls);
     renderer.followCamera(0, true);
     input = new Input({ joystick, knob, passBtn, shootBtn, sprintBtn });
     window.addEventListener('keydown', onKey);
@@ -456,7 +475,7 @@ export function matchScreen({ go, state, args }) {
   }, 0);
 
   // Debug hook for automated checks.
-  window.__fh = { match, mode };
+  window.__fh = { match, mode, get renderer() { return renderer; } };
 
   return {
     el,
@@ -467,6 +486,7 @@ export function matchScreen({ go, state, args }) {
       clearTimeout(halftimeTimer);
       clearInterval(bgTimer);
       clearInterval(pingTimer);
+      insetObserver.disconnect();
       input && input.destroy();
       offs.forEach((off) => off());
       window.removeEventListener('keydown', onKey);

@@ -17,6 +17,9 @@ export class Renderer {
     this.camX = PITCH_W / 2;
     this.camY = PITCH_L / 2;
     this.flip = false;
+    // Screen pixels covered by the HUD (top) and touch controls (bottom). The
+    // camera frames play inside the space between, so goals are never hidden.
+    this.insets = { top: 0, bottom: 0 };
     this.playerName = ''; // shown above the player you control
     this.opponentName = ''; // online: shown above the player your opponent controls
     this.localTeam = match.home; // the side this screen's person plays
@@ -36,17 +39,28 @@ export class Renderer {
     this.scale = Math.min(w, h) / VIEW_METERS;
   }
 
+  setInsets(top, bottom) {
+    // Never let the clear area shrink below 40% of the screen.
+    const max = this.h * 0.6;
+    const t = Math.max(0, top);
+    const b = Math.max(0, Math.min(bottom, max - t));
+    this.insets = { top: t, bottom: b };
+  }
+
+  // Vertical centre of the clear area between the HUD and the controls.
+  get centerY() { return this.insets.top + (this.h - this.insets.top - this.insets.bottom) / 2; }
+
   toScreen(x, y) {
     let dx = x - this.camX;
     let dy = y - this.camY;
     if (this.flip) { dx = -dx; dy = -dy; }
-    return [this.w / 2 + dx * this.scale, this.h / 2 + dy * this.scale];
+    return [this.w / 2 + dx * this.scale, this.centerY + dy * this.scale];
   }
 
   followCamera(dt, snap) {
     const b = this.match.ball;
     const halfW = this.w / 2 / this.scale;
-    const halfH = this.h / 2 / this.scale;
+    const halfH = (this.h - this.insets.top - this.insets.bottom) / 2 / this.scale;
     const margin = 4;
     const fitX = (v, half, size) => (half * 2 >= size + margin * 2 ? size / 2 : clamp(v, half - margin, size + margin - half));
     const tx = fitX(b.x, halfW, PITCH_W);
